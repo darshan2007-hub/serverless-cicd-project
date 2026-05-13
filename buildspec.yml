@@ -3,23 +3,31 @@ version: 0.2
 phases:
   install:
     runtime-versions:
-      nodejs: 22
+      nodejs: 20
 
   pre_build:
     commands:
+      - echo Fetching environment variables from Parameter Store...
+      - export VITE_API_URL=$(aws ssm get-parameter --name /cloudnova/VITE_API_URL --with-decryption --query Parameter.Value --output text)
       - echo Installing frontend dependencies...
-      - cd frontend
-      - npm install
+      - cd frontend && npm install && cd ..
+      - echo Installing backend dependencies...
+      - cd backend && npm install && cd ..
 
   build:
     commands:
       - echo Building React frontend...
-      - npm run build
-      - cd ..
+      - cd frontend && npm run build && cd ..
 
   post_build:
     commands:
-      - echo Build completed successfully
+      - echo Deploying frontend to S3...
+      - aws s3 sync frontend/dist s3://$S3_BUCKET_NAME --delete
+      - echo Deploying backend to Lambda...
+      - cd backend && zip -r function.zip index.js package.json node_modules && cd ..
+      - aws lambda update-function-code --function-name cloudnova-api --zip-file fileb://backend/function.zip
+      - echo Invalidating CloudFront cache...
+      - aws cloudfront create-invalidation --distribution-id $CLOUDFRONT_DISTRIBUTION_ID --paths "/*"
 
 artifacts:
   files:

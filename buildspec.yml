@@ -9,60 +9,32 @@ env:
 phases:
   install:
     runtime-versions:
-      nodejs: 22
+      nodejs: 18
     commands:
-      - echo "=== Installing dependencies ==="
-      - cd frontend && NODE_ENV=development npm ci && cd ..
-      - cd backend && npm ci && cd ..
+      - echo Install phase started on `date`
+      - cd frontend
+      - npm ci
 
   pre_build:
     commands:
-      - echo "=== Pre-build ==="
-      - node --version
-      - echo "VITE_API_URL is set -> $VITE_API_URL"
+      - echo Pre-build phase started on `date`
+      - echo Building the React application...
 
   build:
     commands:
-      - echo "=== Building React frontend ==="
-      - cd frontend && VITE_API_URL=$VITE_API_URL npm run build && cd ..
-      - echo "=== Packaging Lambda ==="
-      - cd backend && zip -r ../lambda-function.zip index.js package.json && cd ..
+      - echo Build phase started on `date`
+      - npm run build
+      - cd ..
 
   post_build:
     commands:
-      - echo "=== Deploying frontend to S3 ==="
-      - |
-        aws s3 sync frontend/dist/ s3://$S3_BUCKET_NAME/ \
-          --delete \
-          --cache-control "public,max-age=31536000,immutable" \
-          --exclude "index.html"
-      - |
-        aws s3 cp frontend/dist/index.html s3://$S3_BUCKET_NAME/index.html \
-          --cache-control "no-cache,no-store,must-revalidate"
-      - echo "=== Updating Lambda function ==="
-      - |
-        aws lambda update-function-code \
-          --function-name cloudnova-api \
-          --zip-file fileb://lambda-function.zip \
-          --region $AWS_DEFAULT_REGION
-      - echo "=== Invalidating CloudFront cache ==="
-      - |
-        if [ -n "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
-          aws cloudfront create-invalidation \
-            --distribution-id $CLOUDFRONT_DISTRIBUTION_ID \
-            --paths "/*"
-        else
-          echo "CLOUDFRONT_DISTRIBUTION_ID not set, skipping invalidation"
-        fi
-      - echo "=== Deployment complete ==="
+      - echo Post-build phase started on `date`
+      - echo Deploying to S3...
+      - aws s3 sync frontend/dist/ s3://cloudnova-serverless-website-2026/ --delete --cache-control "public,max-age=31536000,immutable" --exclude "index.html"
+      - aws s3 cp frontend/dist/index.html s3://cloudnova-serverless-website-2026/index.html --cache-control "public,max-age=0,must-revalidate"
+      - echo Build completed on `date`
 
 artifacts:
   files:
-    - lambda-function.zip
-    - frontend/dist/**/*
-  discard-paths: no
-
-cache:
-  paths:
-    - frontend/node_modules/**/*
-    - backend/node_modules/**/*
+    - '**/*'
+  base-directory: frontend/dist

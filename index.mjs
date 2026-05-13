@@ -1,6 +1,6 @@
 export const handler = async (event) => {
     return {
         statusCode: 200,
-        body: 'Hello from CI/CD Pipeline Deployment!'
+        body: 'Automatic deployment successful!'
     };
 };

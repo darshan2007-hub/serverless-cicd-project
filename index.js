@@ -1,6 +1,6 @@
-exports.handler = async (event) => {
+export const handler = async (event) => {
     return {
         statusCode: 200,
-        body: 'Automatic deployment successful!'
+        body: "Automatic deployment successful!"
     };
 };

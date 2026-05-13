@@ -1,6 +1,5 @@
 {
   "name": "serverless-cicd-project",
   "version": "1.0.0",
-  "description": "AWS Lambda CI/CD Project",
-  "main": "index.js"
+  "type": "module"
 }

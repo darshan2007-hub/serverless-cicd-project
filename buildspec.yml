@@ -12,8 +12,7 @@ phases:
       nodejs: 18
     commands:
       - echo Install phase started on `date`
-      - cd frontend
-      - npm ci
+      - cd frontend && npm ci
 
   pre_build:
     commands:
@@ -23,8 +22,7 @@ phases:
   build:
     commands:
       - echo Build phase started on `date`
-      - npm run build
-      - cd ..
+      - cd frontend && npm run build
 
   post_build:
     commands:

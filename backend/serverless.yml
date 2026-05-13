@@ -1,0 +1,49 @@
+service: cloudnova-backend
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ${opt:region, 'us-east-1'}
+  stage: ${opt:stage, 'prod'}
+  environment:
+    ALLOWED_ORIGIN: ${env:ALLOWED_ORIGIN, '*'}
+    SES_FROM_EMAIL: ${env:SES_FROM_EMAIL, ''}
+    SES_TO_EMAIL: ${env:SES_TO_EMAIL, ''}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - ses:SendEmail
+            - ses:SendRawEmail
+          Resource: '*'
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource: '*'
+
+functions:
+  api:
+    handler: index.handler
+    events:
+      - http:
+          path: /api/{proxy+}
+          method: ANY
+          cors:
+            origin: '*'
+            headers:
+              - Content-Type
+              - Authorization
+      - http:
+          path: /api
+          method: ANY
+          cors: true
+
+plugins:
+  - serverless-offline
+
+custom:
+  serverless-offline:
+    httpPort: 3001

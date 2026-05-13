@@ -1,34 +1,69 @@
 version: 0.2
 
+env:
+  variables:
+    NODE_ENV: production
+  parameter-store:
+    VITE_API_URL: /cloudnova/VITE_API_URL
+
 phases:
   install:
     runtime-versions:
-      nodejs: 20
+      nodejs: 22
+    commands:
+      - echo "=== Installing dependencies ==="
+      - cd frontend && npm ci && cd ..
+      - cd backend && npm ci && cd ..
 
   pre_build:
     commands:
-      - echo Fetching environment variables from Parameter Store...
-      - export VITE_API_URL=$(aws ssm get-parameter --name /cloudnova/VITE_API_URL --with-decryption --query Parameter.Value --output text)
-      - echo Installing frontend dependencies...
-      - cd frontend && npm install && cd ..
-      - echo Installing backend dependencies...
-      - cd backend && npm install && cd ..
+      - echo "=== Pre-build ==="
+      - chmod +x frontend/node_modules/.bin/vite
+      - node --version
+      - echo "VITE_API_URL is set -> $VITE_API_URL"
 
   build:
     commands:
-      - echo Building React frontend...
-      - cd frontend && npm run build && cd ..
+      - echo "=== Building React frontend ==="
+      - cd frontend && VITE_API_URL=$VITE_API_URL npm run build && cd ..
+      - echo "=== Packaging Lambda ==="
+      - cd backend && zip -r ../lambda-function.zip index.js package.json && cd ..
 
   post_build:
     commands:
-      - echo Deploying frontend to S3...
-      - aws s3 sync frontend/dist s3://$S3_BUCKET_NAME --delete
-      - echo Deploying backend to Lambda...
-      - cd backend && zip -r function.zip index.js package.json node_modules && cd ..
-      - aws lambda update-function-code --function-name cloudnova-api --zip-file fileb://backend/function.zip
-      - echo Invalidating CloudFront cache...
-      - aws cloudfront create-invalidation --distribution-id $CLOUDFRONT_DISTRIBUTION_ID --paths "/*"
+      - echo "=== Deploying frontend to S3 ==="
+      - |
+        aws s3 sync frontend/dist/ s3://$S3_BUCKET_NAME/ \
+          --delete \
+          --cache-control "public,max-age=31536000,immutable" \
+          --exclude "index.html"
+      - |
+        aws s3 cp frontend/dist/index.html s3://$S3_BUCKET_NAME/index.html \
+          --cache-control "no-cache,no-store,must-revalidate"
+      - echo "=== Updating Lambda function ==="
+      - |
+        aws lambda update-function-code \
+          --function-name cloudnova-api \
+          --zip-file fileb://lambda-function.zip \
+          --region $AWS_DEFAULT_REGION
+      - echo "=== Invalidating CloudFront cache ==="
+      - |
+        if [ -n "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
+          aws cloudfront create-invalidation \
+            --distribution-id $CLOUDFRONT_DISTRIBUTION_ID \
+            --paths "/*"
+        else
+          echo "CLOUDFRONT_DISTRIBUTION_ID not set, skipping invalidation"
+        fi
+      - echo "=== Deployment complete ==="
 
 artifacts:
   files:
-    - '**/*'
+    - lambda-function.zip
+    - frontend/dist/**/*
+  discard-paths: no
+
+cache:
+  paths:
+    - frontend/node_modules/**/*
+    - backend/node_modules/**/*
